@@ -17,3 +17,7 @@ Queue to handle messages sent to StoreItemApp
 ## Function App - BusMessageHandler
 
 Handles messages sent to the bus
+
+## Function App - ClientApiApp
+
+Provides query access to database
