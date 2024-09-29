@@ -3,12 +3,41 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Azure.Messaging.ServiceBus;
+using Newtonsoft.Json;
+using DomainModel;
+using Microsoft.Extensions.Configuration;
 
 namespace StoreItemApp;
 
 public class StoreItem
 {
     private readonly ILogger _logger;
+    private string _serviceBusClientConnectionString;
+    private string _queueName = "items";
+
+
+    private static Random random = new Random();
+
+    private static string RandomString(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
+    private string BuildMessage(int messageNo)
+    {
+        var message = new ShoppingItem()
+        {
+            Name = messageNo.ToString(),
+            BarCode = RandomString(10),
+            Description = RandomString(20),
+            Price = random.Next(),
+        };
+
+        return JsonConvert.SerializeObject(message);
+    }
+
 
     private async Task AddMessage()
     {
@@ -19,7 +48,7 @@ public class StoreItem
         ServiceBusSender sender;
 
         // number of messages to be sent to the queue
-        const int numOfMessages = 3;
+        const int numOfMessages = 1;
 
         // The Service Bus client types are safe to cache and use as a singleton for the lifetime
         // of the application, which is best practice when messages are being published or read
@@ -33,8 +62,8 @@ public class StoreItem
         {
             TransportType = ServiceBusTransportType.AmqpWebSockets
         };
-        client = new ServiceBusClient(EnvSettings.ServiceBusClientConnectionString, clientOptions);
-        sender = client.CreateSender(EnvSettings.QueueName);
+        client = new ServiceBusClient(_serviceBusClientConnectionString, clientOptions);
+        sender = client.CreateSender(_queueName);
 
         // create a batch 
         using ServiceBusMessageBatch messageBatch = await sender.CreateMessageBatchAsync();
@@ -42,7 +71,9 @@ public class StoreItem
         for (int i = 1; i <= numOfMessages; i++)
         {
             // try adding a message to the batch
-            if (!messageBatch.TryAddMessage(new ServiceBusMessage($"Message {i}")))
+            var message = new ServiceBusMessage(BuildMessage(i));
+            message.Subject = $"Message {i}";
+            if (!messageBatch.TryAddMessage(message))
             {
                 // if it is too large for the batch
                 throw new Exception($"The message {i} is too large to fit in the batch.");
@@ -65,9 +96,14 @@ public class StoreItem
 
     }
 
-    public StoreItem(ILoggerFactory loggerFactory)
+    public StoreItem(ILoggerFactory loggerFactory, IConfiguration configuration)
     {
         _logger = loggerFactory.CreateLogger<StoreItem>();
+        _serviceBusClientConnectionString = Environment.GetEnvironmentVariable("savvy-saves-bus");
+        if (_serviceBusClientConnectionString == null)
+        {
+            _logger.LogError("Unable to load bus connection string");
+        }
     }
 
     [Function("Function1")]
