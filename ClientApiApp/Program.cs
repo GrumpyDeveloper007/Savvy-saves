@@ -4,9 +4,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-var connection = Environment.GetEnvironmentVariable("AZURE_SQL_CONNECTIONSTRING");
+// Retrieve the connection string for use with the application. 
+string connectionString = Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTIONSTRING");
 
-if (connection == null)
+if (connectionString == null)
+{
+    Console.WriteLine("Azure BLOB connection string not found.");
+}
+
+
+var sqlConnection = Environment.GetEnvironmentVariable("AZURE_SQL_CONNECTIONSTRING");
+
+if (sqlConnection == null)
 {
     Console.WriteLine("Azure SQL connection string not found.");
 }
@@ -17,7 +26,7 @@ var host = new HostBuilder()
     {
         services.AddApplicationInsightsTelemetryWorkerService();
         services.ConfigureFunctionsApplicationInsights();
-        services.AddDbContext<ShoppingContext>(options => options.UseSqlServer(connection, b => b.MigrationsAssembly("ClientApiApp")));
+        services.AddDbContext<ShoppingContext>(options => options.UseSqlServer(sqlConnection, b => b.MigrationsAssembly("ClientApiApp")));
     })
     .Build();
 
